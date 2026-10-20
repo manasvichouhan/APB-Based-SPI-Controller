@@ -1,0 +1,138 @@
+// ============================================================
+// APB_SPI_Top.v
+// Top-level module integrating all SPI submodules
+// Compatible with ModelSim & Quartus 18.1
+// ============================================================
+
+module APB_SPI_Top(
+    input  wire        PCLK,
+    input  wire        PRESETn,
+    input  wire        PSEL,
+    input  wire        PENABLE,
+    input  wire        PWRITE,
+    input  wire        miso,
+    input  wire [2:0]  PADDR,
+    input  wire [7:0]  PWDATA,
+    output wire [7:0]  PRDATA,
+    output wire        PREADY,
+    output wire        PSLVERR,
+    output wire        sclk,
+    output wire        ss,
+    output wire        mosi,
+    output wire        spi_interrupt_request
+);
+
+    // -------------------------------------------------------
+    // Internal wires
+    // -------------------------------------------------------
+    wire [2:0]  spr, sppr;
+    wire [1:0]  spi_mode;
+    wire [11:0] baudratedivisor;
+    wire [7:0]  data_mosi, data_miso;
+    wire        cpol, cpha, tip, mstr_o;
+    wire        spiswai, send_data, receive_data, lsbfe;
+    wire        miso_receive_sclk, miso_receive_sclk0;
+    wire        mosi_send_sclk, mosi_send_sclk0;
+
+    // Baud rate flags
+    wire        flag_low, flag_high;
+    wire        flags_low, flags_high;
+
+    // -------------------------------------------------------
+    // Submodule A: SPI Baud Rate Generator
+    // -------------------------------------------------------
+    SPI_Baud_gen A1 (
+        .PCLK             (PCLK),
+        .PRESET_n         (PRESETn),
+        .spiswai_i        (spiswai),
+        .cpol_i           (cpol),
+        .cpha_i           (cpha),
+        .ss_i             (ss),
+        .sppr_i           (sppr),
+        .spr_i            (spr),
+        .spi_mode_i       (spi_mode),
+        .BaudRateDivisor_o(baudratedivisor),
+        .flag_low_o       (flag_low),
+        .flag_high_o      (flag_high),
+        .flags_low_o      (flags_low),
+        .flags_high_o     (flags_high),
+        .mosi_send_sclk_o (mosi_send_sclk),
+        .mosi_send_sclk0_o(mosi_send_sclk0),
+        .miso_receive_sclk_o (miso_receive_sclk),
+        .miso_receive_sclk0_o(miso_receive_sclk0),
+        .sclk_o           (sclk)
+    );
+
+    // -------------------------------------------------------
+    // Submodule B: SPI Slave Select Control
+    // -------------------------------------------------------
+    SPI_Slave_Select B1 (
+        .PCLK              (PCLK),
+        .PRESET_n          (PRESETn),
+        .send_data_i       (send_data),
+        .mstr_i            (mstr_o),
+        .spiswai_i         (spiswai),
+        .spi_mode_i        (spi_mode),
+        .BaudRateDivisor_i (baudratedivisor),
+        .ss_o              (ss),
+        .tip_o             (tip),
+        .receive_data_o    (receive_data)
+    );
+
+    // -------------------------------------------------------
+    // Submodule C: SPI Shift Register
+    // -------------------------------------------------------
+    spi_shift_reg C1 (
+        .PCLK              (PCLK),
+        .PRESET_n          (PRESETn),
+        .ss_i              (ss),
+        .send_data_i       (send_data),
+        .lsbfe_i           (lsbfe),
+        .cpha_i            (cpha),
+        .cpol_i            (cpol),
+        .miso_receive_sclk_i (miso_receive_sclk),
+        .miso_receive_sclk0_i(miso_receive_sclk0),
+        .mosi_send_sclk_i  (mosi_send_sclk),
+        .mosi_send_sclk0_i (mosi_send_sclk0),
+        .flag_low_i        (flag_low),
+        .flag_high_i       (flag_high),
+        .flags_low_i       (flags_low),
+        .flags_high_i      (flags_high),
+        .data_mosi_i       (data_mosi),
+        .miso_i            (miso),
+        .receive_data_i    (receive_data),
+        .mosi_o            (mosi),
+        .data_miso_o       (data_miso)
+    );
+
+    // -------------------------------------------------------
+    // Submodule D: SPI APB Slave Interface
+    // -------------------------------------------------------
+    spi_APB_Slave_Interface D1 (
+        .PCLK              (PCLK),
+        .PRESET_n          (PRESETn),
+        .PADDR_i           (PADDR),
+        .PWRITE_i          (PWRITE),
+        .PSEL_i            (PSEL),
+        .PENABLE_i         (PENABLE),
+        .PWDATA_i          (PWDATA),
+        .tip_i             (tip),
+        .miso_data_i       (data_miso),
+        .receive_data_i    (receive_data),
+        .spi_interrupt_request_o(spi_interrupt_request),
+        .PRDATA_o          (PRDATA),
+        .PREADY_o          (PREADY),
+        .PSLVERR_o         (PSLVERR),
+        .send_data_o       (send_data),
+        .mosi_data_o       (data_mosi),
+        .spi_mode_o        (spi_mode),
+        .mstr_o            (mstr_o),
+        .cpol_o            (cpol),
+        .cpha_o            (cpha),
+        .lsbfe_o           (lsbfe),
+        .spiswai_o         (spiswai),
+        .sppr_o            (sppr),
+        .spr_o             (spr)
+    );
+
+endmodule
